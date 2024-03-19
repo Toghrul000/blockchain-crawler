@@ -36,8 +36,11 @@ async function getTransactionsInRange() {
 
     const cachedTransactions = readFromCache();
     if (cachedTransactions && cachedTransactions.startBlock === startBlock && cachedTransactions.endBlock === endBlock) {
-        return cachedTransactions.response;
+        // /console.log(cachedTransactions);
+        
+        return cachedTransactions.transactions;
     }
+
 
     let response = await alchemy.core.getAssetTransfers({
         fromBlock: startBlock,
@@ -47,11 +50,13 @@ async function getTransactionsInRange() {
         category: ["erc20"],
     })
 
-    writeToCache({ startBlock, endBlock, response });
-    return response.transfers;
+    const transactions = response.transfers;
+
+    writeToCache({ startBlock, endBlock, transactions});
+    return transactions;
 }
 
-
+//TODO: cache this
 async function getSwapEvents(txHash){
     const receipt = await alchemy.core.getTransactionReceipt(txHash);
     const swapEvents = receipt.logs.filter((log) => {
@@ -71,7 +76,8 @@ async function main() {
     for (let i = 0; i < transfers.length; i++) {
         const swapEventCount = await getSwapEvents(transfers[i].hash);
         if (swapEventCount >= 2) {
-            console.log(transfers[i]);
+            //console.log(transfers[i]);
+            //console.log(count);
             count++;
         }
     }
