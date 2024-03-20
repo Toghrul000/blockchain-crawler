@@ -13,13 +13,13 @@ const transactionHash = '0xb72689042f313adbffbe4d192b0febc4c8a8346b75a549d5b4d47
 
 // The ERC20 token contract ABI
 const erc20Abi = [
-    // Only include the Transfer event ABI
-    "event Transfer(address indexed from, address indexed to, uint256 amount)"
+  // Only include the Transfer event ABI
+  "event Transfer(address indexed from, address indexed to, uint256 amount)"
 ];
 
 
 
-async function getSwapEvents(txHash){
+async function getSwapEvents(txHash) {
   const receipt = await provider.getTransactionReceipt(txHash);
   const swapEvents = receipt.logs.filter((log) => {
     // Match the event signature to the Swap event
@@ -27,7 +27,7 @@ async function getSwapEvents(txHash){
   });
 
   console.log(swapEvents);
-  return swapEvents; 
+  return swapEvents;
 }
 
 // Function to get and display ERC20 token transfers
@@ -38,7 +38,7 @@ async function getErc20Transfers(txHash) {
     //console.log(receipt.logs);
 
     // Filter ERC20 Transfer events
-    const transferEvents = receipt.logs.filter(log => 
+    const transferEvents = receipt.logs.filter(log =>
       log.topics[0] === ethers.utils.id('Transfer(address,address,uint256)')
     );
     console.log(transferEvents);
@@ -56,7 +56,7 @@ async function getErc20Transfers(txHash) {
         to: to,
         amount: ethers.BigNumber.from(data),
       }
-      
+
       let f = ethers.utils.hexStripZeros(from);
       f = ethers.utils.hexZeroPad(f, 20);
       // console.log(`Token Transfer:
