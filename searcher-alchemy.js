@@ -41,6 +41,8 @@ function writeToReceiptsCache(txHash, receiptData) {
   fs.writeFileSync(receiptsCacheFilePath, JSON.stringify(receiptsCache));
 }
 
+
+
 // Alchemy API endpoint and API key
 const alchemyApiKey = process.env.ALCHEMY_API_KEY;
 const config = {
@@ -84,9 +86,7 @@ async function getTransactionsInRange() {
       if (!transactions.includes(tx.hash)) {
         transactions.push(tx.hash);
       }
-
     }
-
 
   } while (pageKey);
 
@@ -98,6 +98,7 @@ async function getSwapEvents(txHash) {
   let receipt = readFromReceiptsCache(txHash);
   if (!receipt) {
     receipt = await alchemy.core.getTransactionReceipt(txHash);
+    receipt = { logs: receipt.logs };
     writeToReceiptsCache(txHash, receipt);
   }
   const swapEvents = receipt.logs.filter((log) => {
@@ -113,6 +114,7 @@ async function getErc20Transfers(txHash) {
   if (!receipt) {
     console.log("no receipts cached");
     receipt = await alchemy.core.getTransactionReceipt(txHash);
+    receipt = { logs: receipt.logs };
     writeToReceiptsCache(txHash, receipt);
   }
 
@@ -151,7 +153,6 @@ async function getErc20Transfers(txHash) {
 async function possibleFlashloan(txHash) {
   const transfers = await getErc20Transfers(txHash);
 
-
   const first = transfers[0];
   const from_first = first.from;
   const to_first = first.to;
@@ -169,9 +170,8 @@ async function possibleFlashloan(txHash) {
   }
 }
 
-async function isArbitrage() {
+async function getArbitrage(txHash) {
   const transfers = await getErc20Transfers(txHash);
-
 
   const first = transfers[0];
   const from_first = first.from;
@@ -182,7 +182,7 @@ async function isArbitrage() {
   // This check is saying first and last transfer should be same token and address from and to should be same in first and last transfer
   const firstCheck = first.tokenAddress == last.tokenAddress && from_first == to_last;
 
-  const swapEvents = await getSwapEvents();
+  const swapEvents = await getSwapEvents(txHash);
   const ExchangeAddresses = []
   for (sw of swapEvents) {
     if (!ExchangeAddresses.includes(sw.address)) {
@@ -191,9 +191,6 @@ async function isArbitrage() {
   }
 
   const secondCheck = ExchangeAddresses.length >= 2;
-
-
-
 
   if (firstCheck && secondCheck) {
     return true;
@@ -211,14 +208,13 @@ async function main() {
   for (let i = 0; i < transfers.length; i++) {
     const swapEvents = await getSwapEvents(transfers[i]);
     const isFlashloaned = await possibleFlashloan(transfers[i]);
-    const isArbitrage = await isArbitrage(transfers[i]);
+    const isArbitrage = await getArbitrage(transfers[i]);
     if (swapEvents.length >= 2 && isArbitrage) {
       console.log(transfers[i]);
       count++;
     }
   }
   console.log(`Number of transactions with >= 2 Swap events: ${count}`);
-
 
 }
 
