@@ -1,6 +1,6 @@
 const { Alchemy, Network, Utils, fromHex } = require("alchemy-sdk");
 require('dotenv').config();
-//const { ethers } = require('ethers');
+
 
 const fs = require('fs');
 
@@ -54,8 +54,8 @@ async function getTransactionsInRange() {
   const WTH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
   // const WBTC = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599";
 
-  const startBlock = "0x1291A98";
-  const endBlock = "0x1291afc";
+  const startBlock = "0x1291B24";
+  const endBlock = "0x1291F0C";
 
   const cachedTransactions = readFromCache();
   if (cachedTransactions && cachedTransactions.startBlock === startBlock && cachedTransactions.endBlock === endBlock) {
@@ -80,7 +80,14 @@ async function getTransactionsInRange() {
       request['pageKey'] = pageKey;
     }
 
-    transactions.push(response.transfers);
+    for (tx of response.transfers) {
+      if (!transactions.includes(tx.hash)) {
+        transactions.push(tx.hash);
+      }
+
+    }
+
+
   } while (pageKey);
 
   writeToCache({ startBlock, endBlock, transactions });
@@ -97,7 +104,7 @@ async function getSwapEvents(txHash) {
     // Match the event signature to the Swap event
     return log.topics[0] === Utils.id('Swap(address,uint256,uint256,uint256,uint256,address)');
   });
-  return swapEvents.length;
+  return swapEvents;
 }
 
 
@@ -119,9 +126,6 @@ async function getErc20Transfers(txHash) {
     const from = log.topics[1];
     const to = log.topics[2];
     const data = log.data;
-
-    // const numData = ethers.BigNumber.from(data);
-    // console.log("Data:", numData);
 
     const transferEvent = {
       tokenAddress: tokenAddress,
@@ -151,12 +155,47 @@ async function possibleFlashloan(txHash) {
   const first = transfers[0];
   const from_first = first.from;
   const to_first = first.to;
+  const amount_first = first.data;
 
   const last = transfers[transfers.length - 1];
   const from_last = last.from;
   const to_last = last.to;
+  const amount_last = last.data;
 
-  if (first.tokenAddress == last.tokenAddress && from_first == to_last && to_first == from_last) {
+  if (first.tokenAddress == last.tokenAddress && parseInt(amount_last, 16) >= parseInt(amount_first, 16) && from_first == to_last && to_first == from_last) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+async function isArbitrage() {
+  const transfers = await getErc20Transfers(txHash);
+
+
+  const first = transfers[0];
+  const from_first = first.from;
+
+  const last = transfers[transfers.length - 1];
+  const to_last = last.to;
+
+  // This check is saying first and last transfer should be same token and address from and to should be same in first and last transfer
+  const firstCheck = first.tokenAddress == last.tokenAddress && from_first == to_last;
+
+  const swapEvents = await getSwapEvents();
+  const ExchangeAddresses = []
+  for (sw of swapEvents) {
+    if (!ExchangeAddresses.includes(sw.address)) {
+      ExchangeAddresses.push(sw.address);
+    }
+  }
+
+  const secondCheck = ExchangeAddresses.length >= 2;
+
+
+
+
+  if (firstCheck && secondCheck) {
     return true;
   } else {
     return false;
@@ -168,13 +207,13 @@ async function main() {
 
   let transfers = await getTransactionsInRange();
   let count = 0;
-  transfers = transfers.flat();
 
   for (let i = 0; i < transfers.length; i++) {
-    const swapEventCount = await getSwapEvents(transfers[i].hash);
-    const isFlashloaned = await possibleFlashloan(transfers[i].hash);
-    if (swapEventCount >= 2 && isFlashloaned) {
-      console.log(transfers[i].hash);
+    const swapEvents = await getSwapEvents(transfers[i]);
+    const isFlashloaned = await possibleFlashloan(transfers[i]);
+    const isArbitrage = await isArbitrage(transfers[i]);
+    if (swapEvents.length >= 2 && isArbitrage) {
+      console.log(transfers[i]);
       count++;
     }
   }
