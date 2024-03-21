@@ -1,11 +1,12 @@
 const { Alchemy, Network, Utils, fromHex } = require("alchemy-sdk");
 require('dotenv').config();
 
-
 const fs = require('fs');
 
-const cacheFilePath = './transactionsCache.json';
-const receiptsCacheFilePath = './receiptsCache.json';
+const cacheFilePath = './cache/transfersCache.json';
+const receiptsCacheFilePath = './cache/receiptsCache.json';
+
+let receiptsCacheJSON;
 
 // Helper function to read from cache
 function readFromCache() {
@@ -23,22 +24,28 @@ function writeToCache(data) {
 
 // Helper function to read from receipts cache
 function readFromReceiptsCache(txHash) {
-  if (fs.existsSync(receiptsCacheFilePath)) {
-    const cacheData = fs.readFileSync(receiptsCacheFilePath);
-    const receiptsCache = JSON.parse(cacheData);
-    return receiptsCache[txHash] || null;
+  if (!fs.existsSync(receiptsCacheFilePath)) {
+    return null;
   }
-  return null;
+
+  if (!receiptsCacheJSON) {
+    const cacheData = fs.readFileSync(receiptsCacheFilePath);
+    receiptsCacheJSON = JSON.parse(cacheData);
+  }
+
+  return receiptsCacheJSON[txHash] || null;
 }
 
-// Helper function to write to receipts cache
-function writeToReceiptsCache(txHash, receiptData) {
-  let receiptsCache = {};
-  if (fs.existsSync(receiptsCacheFilePath)) {
-    receiptsCache = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
+// Helper function to write to receipts cache given an object of receipts
+function writeAllToReceiptsCache(listOfReceipts) {
+  if (!receiptsCacheJSON && fs.existsSync(receiptsCacheFilePath)) {
+    receiptsCacheJSON = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
   }
-  receiptsCache[txHash] = receiptData;
-  fs.writeFileSync(receiptsCacheFilePath, JSON.stringify(receiptsCache));
+  for (hash in listOfReceipts) {
+    receiptsCacheJSON[hash] = { logs: listOfReceipts[hash].logs };
+  }
+  
+  fs.writeFileSync(receiptsCacheFilePath, JSON.stringify(receiptsCacheJSON));
 }
 
 
@@ -57,11 +64,11 @@ async function getTransactionsInRange() {
   // const WBTC = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599";
 
   const startBlock = "0x1291B24";
-  const endBlock = "0x1291F0C";
+  const endBlock = "0x1291C36";
 
   const cachedTransactions = readFromCache();
   if (cachedTransactions && cachedTransactions.startBlock === startBlock && cachedTransactions.endBlock === endBlock) {
-    console.log("going in cached on transfers");
+    console.log("Reading from transfersCache");
     return cachedTransactions.transactions;
   }
 
@@ -94,13 +101,7 @@ async function getTransactionsInRange() {
   return transactions;
 }
 
-async function getSwapEvents(txHash) {
-  let receipt = readFromReceiptsCache(txHash);
-  if (!receipt) {
-    receipt = await alchemy.core.getTransactionReceipt(txHash);
-    receipt = { logs: receipt.logs };
-    writeToReceiptsCache(txHash, receipt);
-  }
+async function getSwapEvents(receipt) {
   const swapEvents = receipt.logs.filter((log) => {
     // Match the event signature to the Swap event
     return log.topics[0] === Utils.id('Swap(address,uint256,uint256,uint256,uint256,address)');
@@ -109,15 +110,7 @@ async function getSwapEvents(txHash) {
 }
 
 
-async function getErc20Transfers(txHash) {
-  let receipt = readFromReceiptsCache(txHash);
-  if (!receipt) {
-    console.log("no receipts cached");
-    receipt = await alchemy.core.getTransactionReceipt(txHash);
-    receipt = { logs: receipt.logs };
-    writeToReceiptsCache(txHash, receipt);
-  }
-
+async function getErc20Transfers(receipt) {
   const transferEvents = receipt.logs.filter(log =>
     log.topics[0] === Utils.id('Transfer(address,address,uint256)')
   );
@@ -136,16 +129,6 @@ async function getErc20Transfers(txHash) {
       amount: data,
     }
     transfers.push(transferEvent);
-    // console.log(transferEvent);
-
-    // let f = ethers.utils.hexStripZeros(from);
-    // f = ethers.utils.hexZeroPad(f, 20);
-    // console.log(`Token Transfer:
-    //   TokenAddress: ${tokenAddress},
-    //   From: ${from},
-    //   To: ${to},
-    //   Amount: ${ethers.BigNumber.from(data)}
-    // `);
   });
   return transfers;
 }
@@ -170,8 +153,8 @@ async function possibleFlashloan(txHash) {
   }
 }
 
-async function getArbitrage(txHash) {
-  const transfers = await getErc20Transfers(txHash);
+async function getArbitrage(receipt) {
+  const transfers = await getErc20Transfers(receipt);
 
   const first = transfers[0];
   const from_first = first.from;
@@ -182,7 +165,7 @@ async function getArbitrage(txHash) {
   // This check is saying first and last transfer should be same token and address from and to should be same in first and last transfer
   const firstCheck = first.tokenAddress == last.tokenAddress && from_first == to_last;
 
-  const swapEvents = await getSwapEvents(txHash);
+  const swapEvents = await getSwapEvents(receipt);
   const ExchangeAddresses = []
   for (sw of swapEvents) {
     if (!ExchangeAddresses.includes(sw.address)) {
@@ -202,15 +185,31 @@ async function getArbitrage(txHash) {
 
 async function main() {
 
-  let transfers = await getTransactionsInRange();
+  let transactionsHash = await getTransactionsInRange();
   let count = 0;
 
-  for (let i = 0; i < transfers.length; i++) {
-    const swapEvents = await getSwapEvents(transfers[i]);
-    const isFlashloaned = await possibleFlashloan(transfers[i]);
-    const isArbitrage = await getArbitrage(transfers[i]);
+  let transactionsReceipt = {};
+  let transactionsReceiptToSave = {};
+  console.time();
+  for (let i = 0; i < transactionsHash.length; i++) {
+    let receipt = readFromReceiptsCache(transactionsHash[i]);
+    if (!receipt) {
+      receipt = await alchemy.core.getTransactionReceipt(transactionsHash[i]);
+      transactionsReceiptToSave[transactionsHash[i]] = { logs: receipt.logs };
+    }
+    transactionsReceipt[transactionsHash[i]] = { logs: receipt.logs };
+  }
+  console.timeEnd();
+
+  // Writing missing transactions receipt in the cache
+  writeAllToReceiptsCache(transactionsReceiptToSave);
+
+  for (hash in transactionsReceipt) {
+    const swapEvents = await getSwapEvents(transactionsReceipt[hash]);
+    //const isFlashloaned = await possibleFlashloan(transfers[i]);
+    const isArbitrage = await getArbitrage(transactionsReceipt[hash]);
     if (swapEvents.length >= 2 && isArbitrage) {
-      console.log(transfers[i]);
+      console.log(hash);
       count++;
     }
   }
