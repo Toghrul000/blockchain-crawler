@@ -2,4 +2,4 @@
 package-lock.json
 transactionsCache.json
 receiptsCache.json
-/cache
+/cache/*
