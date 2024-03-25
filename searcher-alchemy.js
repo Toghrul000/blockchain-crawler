@@ -3,8 +3,8 @@ require('dotenv').config();
 
 const fs = require('fs');
 
-const cacheFilePath = './cache/transfersCache.json';
-const receiptsCacheFilePath = './cache/receiptsCache.json';
+const cacheFilePath = './cache/transfersCache1.json';
+const receiptsCacheFilePath = './cache/receiptsCache1.json';
 
 let receiptsCacheJSON;
 
@@ -133,8 +133,8 @@ async function getErc20Transfers(receipt) {
   return transfers;
 }
 
-async function possibleFlashloan(txHash) {
-  const transfers = await getErc20Transfers(txHash);
+async function possibleFlashloan(receipt) {
+  const transfers = await getErc20Transfers(receipt);
 
   const first = transfers[0];
   const from_first = first.from;
@@ -206,7 +206,7 @@ async function main() {
 
   for (hash in transactionsReceipt) {
     const swapEvents = await getSwapEvents(transactionsReceipt[hash]);
-    //const isFlashloaned = await possibleFlashloan(transfers[i]);
+    //const isFlashloaned = await possibleFlashloan(transactionsReceipt[hash]);
     const isArbitrage = await getArbitrage(transactionsReceipt[hash]);
     if (swapEvents.length >= 2 && isArbitrage) {
       console.log(hash);
