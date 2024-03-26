@@ -101,10 +101,26 @@ async function getTransactionsInRange() {
   return transactions;
 }
 
+
+// Add V3 swap signature add others (Cow swap)
 async function getSwapEvents(receipt) {
+  const swapEventSignatures = [
+    Utils.id('Swap(address,uint256,uint256,uint256,uint256,address)'),
+    Utils.id('Swap(address,address,int256,int256,uint160,uint128,int24)'),
+    Utils.id('Trade(address,address,address,uint256,uint256,uint256,bytes)'),
+    Utils.id('TransformedERC20(address,address,address,uint256,uint256)'),
+    Utils.id('Conversion(address,address,address,uint256,uint256,int256)'),
+    Utils.id('Conversion(address,address,address,uint256,uint256,address)'),
+    Utils.id('Swap(bytes32,address,address,uint256,uint256)'),
+    Utils.id('Swap(address,uint256,uint256,uint256,uint256,address)'),
+    Utils.id('Swapped(address,address,address,address,uint256,uint256,uint256,uint256,uint256,address)'),
+    Utils.id('LOG_SWAP(address,address,address,uint256,uint256)'),
+    Utils.id('Swapped(address,address,address,address,uint256,uint256)'),
+];
+
   const swapEvents = receipt.logs.filter((log) => {
     // Match the event signature to the Swap event
-    return log.topics[0] === Utils.id('Swap(address,uint256,uint256,uint256,uint256,address)');
+    return swapEventSignatures.includes(log.topics[0]);
   });
   return swapEvents;
 }
@@ -153,26 +169,50 @@ async function possibleFlashloan(receipt) {
   }
 }
 
-async function getArbitrage(receipt) {
+// This was function was nessesary since some addresses are padded and not in original ethereum style
+function removeLeadingZeros(paddedAddress) {
+  // Remove '0x' prefix if present
+  if (paddedAddress.startsWith('0x')) {
+      paddedAddress = paddedAddress.slice(2);
+  }
+
+  // Remove leading zeros, and keep untill 40 characters, 40 is default ethereum address
+  while (paddedAddress.length > 40 && paddedAddress.startsWith('0')) {
+      paddedAddress = paddedAddress.slice(1);
+  }
+
+  // Add back '0x' prefix
+  return '0x' + paddedAddress;
+}
+
+async function isCycle(receipt, ExchangeAddresses){
   const transfers = await getErc20Transfers(receipt);
+  const prevs = [];
+  for(tx of transfers) {
+    for(prev of prevs){
+      //console.log(prev);
+      if(prev.from === tx.to && tx.tokenAddress === prev.tokenAddress && tx.amount > prev.amount && !ExchangeAddresses.includes(removeLeadingZeros(prev.from))){
+        // console.log("current prev: ", prev.amount);
+        // console.log("current tx: ", tx.amount);
+        return true;
+      }
+    }
+    prevs.push(tx);
+  }
 
-  const first = transfers[0];
-  const from_first = first.from;
+}
 
-  const last = transfers[transfers.length - 1];
-  const to_last = last.to;
 
-  // This check is saying first and last transfer should be same token and address from and to should be same in first and last transfer
-  const firstCheck = first.tokenAddress == last.tokenAddress && from_first == to_last;
-
+async function getArbitrage(receipt) {
   const swapEvents = await getSwapEvents(receipt);
   const ExchangeAddresses = []
   for (sw of swapEvents) {
     if (!ExchangeAddresses.includes(sw.address)) {
-      ExchangeAddresses.push(sw.address);
+      ExchangeAddresses.push(sw.address.toLowerCase());
     }
   }
 
+  const firstCheck = await isCycle(receipt, ExchangeAddresses);
   const secondCheck = ExchangeAddresses.length >= 2;
 
   if (firstCheck && secondCheck) {
