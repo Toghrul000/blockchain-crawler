@@ -28,7 +28,7 @@ function readFromReceiptsCache(txHash) {
     return null;
   }
 
-  if (!receiptsCacheJSON) {
+  if (Object.keys(receiptsCacheJSON).length == 0) {
     const cacheData = fs.readFileSync(receiptsCacheFilePath);
     receiptsCacheJSON = JSON.parse(cacheData);
   }
@@ -38,7 +38,7 @@ function readFromReceiptsCache(txHash) {
 
 // Helper function to write to receipts cache given an object of receipts
 function writeAllToReceiptsCache(listOfReceipts) {
-  if (!receiptsCacheJSON && fs.existsSync(receiptsCacheFilePath)) {
+  if (Object.keys(receiptsCacheJSON).length == 0 && fs.existsSync(receiptsCacheFilePath)) {
     receiptsCacheJSON = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
   }
   for (hash in listOfReceipts) {
@@ -214,7 +214,7 @@ async function getArbitrage(receipt) {
   const firstCheck = ExchangeAddresses.length >= 2;
   if (firstCheck) {
     const secondCheckCheck = await isCycle(receipt, ExchangeAddresses);
-    if (secondCheckCheck){
+    if (secondCheckCheck) {
       return true;
     }
   }
@@ -224,6 +224,7 @@ async function getArbitrage(receipt) {
 async function main() {
 
   let transactionsHash = await getTransactionsInRange();
+  console.log("Finished getting asset transfers!");
 
   let transactionsReceipt = {};
   let transactionsReceiptToSave = {};
@@ -238,7 +239,7 @@ async function main() {
       transactionsReceipt[transactionsHash[i]] = receipt;
     }
   } catch (error) {
-    console.log(error);
+    console.log("Error while collecting data: " + error);
   } finally {
     console.timeEnd();
     // Writing missing transactions receipt in the cache
