@@ -6,7 +6,7 @@ const fs = require('fs');
 const cacheFilePath = './cache/transfersCache1.json';
 const receiptsCacheFilePath = './cache/receiptsCache1.json';
 
-let receiptsCacheJSON;
+let receiptsCacheJSON = {};
 
 // Helper function to read from cache
 function readFromCache() {
@@ -42,9 +42,9 @@ function writeAllToReceiptsCache(listOfReceipts) {
     receiptsCacheJSON = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
   }
   for (hash in listOfReceipts) {
-    receiptsCacheJSON[hash] = { logs: listOfReceipts[hash].logs };
+    receiptsCacheJSON[hash] = listOfReceipts[hash];
   }
-  
+
   fs.writeFileSync(receiptsCacheFilePath, JSON.stringify(receiptsCacheJSON));
 }
 
@@ -116,7 +116,7 @@ async function getSwapEvents(receipt) {
     Utils.id('Swapped(address,address,address,address,uint256,uint256,uint256,uint256,uint256,address)'),
     Utils.id('LOG_SWAP(address,address,address,uint256,uint256)'),
     Utils.id('Swapped(address,address,address,address,uint256,uint256)'),
-];
+  ];
 
   const swapEvents = receipt.logs.filter((log) => {
     // Match the event signature to the Swap event
@@ -173,25 +173,25 @@ async function possibleFlashloan(receipt) {
 function removeLeadingZeros(paddedAddress) {
   // Remove '0x' prefix if present
   if (paddedAddress.startsWith('0x')) {
-      paddedAddress = paddedAddress.slice(2);
+    paddedAddress = paddedAddress.slice(2);
   }
 
   // Remove leading zeros, and keep untill 40 characters, 40 is default ethereum address
   while (paddedAddress.length > 40 && paddedAddress.startsWith('0')) {
-      paddedAddress = paddedAddress.slice(1);
+    paddedAddress = paddedAddress.slice(1);
   }
 
   // Add back '0x' prefix
   return '0x' + paddedAddress;
 }
 
-async function isCycle(receipt, ExchangeAddresses){
+async function isCycle(receipt, ExchangeAddresses) {
   const transfers = await getErc20Transfers(receipt);
   const prevs = [];
-  for(tx of transfers) {
-    for(prev of prevs){
+  for (tx of transfers) {
+    for (prev of prevs) {
       //console.log(prev);
-      if(prev.from === tx.to && tx.tokenAddress === prev.tokenAddress && tx.amount > prev.amount && !ExchangeAddresses.includes(removeLeadingZeros(prev.from))){
+      if (prev.from === tx.to && tx.tokenAddress === prev.tokenAddress && tx.amount > prev.amount && !ExchangeAddresses.includes(removeLeadingZeros(prev.from))) {
         // console.log("current prev: ", prev.amount);
         // console.log("current tx: ", tx.amount);
         return true;
@@ -226,24 +226,28 @@ async function getArbitrage(receipt) {
 async function main() {
 
   let transactionsHash = await getTransactionsInRange();
-  let count = 0;
 
   let transactionsReceipt = {};
   let transactionsReceiptToSave = {};
   console.time();
-  for (let i = 0; i < transactionsHash.length; i++) {
-    let receipt = readFromReceiptsCache(transactionsHash[i]);
-    if (!receipt) {
-      receipt = await alchemy.core.getTransactionReceipt(transactionsHash[i]);
-      transactionsReceiptToSave[transactionsHash[i]] = { logs: receipt.logs };
+  try {
+    for (let i = 0; i < transactionsHash.length; i++) {
+      let receipt = readFromReceiptsCache(transactionsHash[i]);
+      if (!receipt) {
+        receipt = await alchemy.core.getTransactionReceipt(transactionsHash[i]);
+        transactionsReceiptToSave[transactionsHash[i]] = receipt;
+      }
+      transactionsReceipt[transactionsHash[i]] = receipt;
     }
-    transactionsReceipt[transactionsHash[i]] = { logs: receipt.logs };
+  } catch (error) {
+    console.log(error);
+  } finally {
+    console.timeEnd();
+    // Writing missing transactions receipt in the cache
+    writeAllToReceiptsCache(transactionsReceiptToSave);
   }
-  console.timeEnd();
 
-  // Writing missing transactions receipt in the cache
-  writeAllToReceiptsCache(transactionsReceiptToSave);
-
+  let count = 0;
   for (hash in transactionsReceipt) {
     const swapEvents = await getSwapEvents(transactionsReceipt[hash]);
     //const isFlashloaned = await possibleFlashloan(transactionsReceipt[hash]);
@@ -254,7 +258,6 @@ async function main() {
     }
   }
   console.log(`Number of transactions with >= 2 Swap events: ${count}`);
-
 }
 
 // Call the main function
