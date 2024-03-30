@@ -63,8 +63,11 @@ async function getTransactionsInRange() {
   const WTH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
   // const WBTC = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599";
 
-  const startBlock = "0x1291B24";
-  const endBlock = "0x1291C36";
+  // const startBlock = "0x1291B24"; //19471140
+  // const endBlock = "0x1291C36"; //19471414
+
+  const startBlock = "0x1291C36";//19471414
+  const endBlock = "0x129E53A"; //19522874
 
   const cachedTransactions = readFromCache();
   if (cachedTransactions && cachedTransactions.startBlock === startBlock && cachedTransactions.endBlock === endBlock) {
@@ -230,14 +233,18 @@ async function main() {
   let transactionsReceiptToSave = {};
   console.time();
   try {
-    for (let i = 0; i < transactionsHash.length; i++) {
-      let receipt = readFromReceiptsCache(transactionsHash[i]);
+    // Create an array of promises for fetching transaction receipts
+    const promises = transactionsHash.map(async (hash) => {
+      let receipt = readFromReceiptsCache(hash);
       if (!receipt) {
-        receipt = await alchemy.core.getTransactionReceipt(transactionsHash[i]);
-        transactionsReceiptToSave[transactionsHash[i]] = receipt;
+        receipt = await alchemy.core.getTransactionReceipt(hash);
+        transactionsReceiptToSave[hash] = receipt;
       }
-      transactionsReceipt[transactionsHash[i]] = receipt;
-    }
+      transactionsReceipt[hash] = receipt;
+    });
+
+    // Wait for all promises to resolve
+    await Promise.all(promises);
   } catch (error) {
     console.log("Error while collecting data: " + error);
   } finally {
