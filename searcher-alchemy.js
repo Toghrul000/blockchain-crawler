@@ -229,7 +229,6 @@ async function main() {
   let transactionsHash = await getTransactionsInRange();
   console.log("Finished getting asset transfers!");
 
-  let transactionsReceipt = {};
   let transactionsReceiptToSave = {};
   console.time();
   try {
@@ -240,7 +239,6 @@ async function main() {
         receipt = await alchemy.core.getTransactionReceipt(hash);
         transactionsReceiptToSave[hash] = receipt;
       }
-      transactionsReceipt[hash] = receipt;
     });
 
     // Wait for all promises to resolve
@@ -254,10 +252,10 @@ async function main() {
   }
 
   let count = 0;
-  for (hash in transactionsReceipt) {
-    const swapEvents = await getSwapEvents(transactionsReceipt[hash]);
-    //const isFlashloaned = await possibleFlashloan(transactionsReceipt[hash]);
-    const isArbitrage = await getArbitrage(transactionsReceipt[hash]);
+  for (hash in receiptsCacheJSON) {
+    const swapEvents = await getSwapEvents(receiptsCacheJSON[hash]);
+    //const isFlashloaned = await possibleFlashloan(receiptsCacheJSON[hash]);
+    const isArbitrage = await getArbitrage(receiptsCacheJSON[hash]);
     if (swapEvents.length >= 2 && isArbitrage) {
       console.log(hash);
       count++;
