@@ -211,16 +211,14 @@ async function getArbitrage(receipt) {
       ExchangeAddresses.push(sw.address.toLowerCase());
     }
   }
-
-  const firstCheck = await isCycle(receipt, ExchangeAddresses);
-  const secondCheck = ExchangeAddresses.length >= 2;
-
-  if (firstCheck && secondCheck) {
-    return true;
-  } else {
-    return false;
+  const firstCheck = ExchangeAddresses.length >= 2;
+  if (firstCheck) {
+    const secondCheckCheck = await isCycle(receipt, ExchangeAddresses);
+    if (secondCheckCheck){
+      return true;
+    }
   }
-
+  return false;
 }
 
 async function main() {
