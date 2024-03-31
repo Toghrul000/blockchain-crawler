@@ -66,8 +66,8 @@ async function getTransactionsInRange() {
   // const startBlock = "0x1291B24"; //19471140
   // const endBlock = "0x1291C36"; //19471414
 
-  const startBlock = "0x1291C36";//19471414
-  const endBlock = "0x129E53A"; //19522874
+  const startBlock = "0x1291C36";//19471414 
+  const endBlock = "0x12937B2"; //19478450
 
   const cachedTransactions = readFromCache();
   if (cachedTransactions && cachedTransactions.startBlock === startBlock && cachedTransactions.endBlock === endBlock) {
@@ -202,67 +202,84 @@ async function isCycle(receipt, ExchangeAddresses) {
     }
     prevs.push(tx);
   }
-
 }
 
 
 async function getArbitrage(receipt) {
   const swapEvents = await getSwapEvents(receipt);
-  const ExchangeAddresses = []
-  for (sw of swapEvents) {
-    if (!ExchangeAddresses.includes(sw.address)) {
-      ExchangeAddresses.push(sw.address.toLowerCase());
-    }
-  }
-  const firstCheck = ExchangeAddresses.length >= 2;
+  const firstCheck = swapEvents.length >= 2;
   if (firstCheck) {
-    const secondCheckCheck = await isCycle(receipt, ExchangeAddresses);
-    if (secondCheckCheck) {
-      return true;
+    const ExchangeAddresses = [];
+    for (sw of swapEvents) {
+      if (!ExchangeAddresses.includes(sw.address)) {
+        ExchangeAddresses.push(sw.address.toLowerCase());
+      }
+    }
+    const secondCheck = ExchangeAddresses.length >= 2;
+    if (secondCheck) {
+      const thirdCheck = await isCycle(receipt, ExchangeAddresses);
+      if (thirdCheck) {
+        return true;
+      }
     }
   }
   return false;
 }
 
 async function main() {
-
-  let transactionsHash = await getTransactionsInRange();
+  const transactionsHash = await getTransactionsInRange();
   console.log("Finished getting asset transfers!");
 
-  let transactionsReceiptToSave = {};
-  console.time();
-  try {
-    // Create an array of promises for fetching transaction receipts
-    const promises = transactionsHash.map(async (hash) => {
-      let receipt = readFromReceiptsCache(hash);
-      if (!receipt) {
-        receipt = await alchemy.core.getTransactionReceipt(hash);
-        transactionsReceiptToSave[hash] = receipt;
-      }
-    });
+  const batchSize = 5000;
+  const numChunks = Math.ceil(transactionsHash.length / batchSize);
+  console.log("Number of Chunks: ", numChunks);
 
-    // Wait for all promises to resolve
-    await Promise.all(promises);
-  } catch (error) {
-    console.log("Error while collecting data: " + error);
-  } finally {
-    console.timeEnd();
-    // Writing missing transactions receipt in the cache
-    writeAllToReceiptsCache(transactionsReceiptToSave);
+  for (let i = 0; i < numChunks; i++) {
+    const startIdx = i * batchSize;
+    const endIdx = Math.min((i + 1) * batchSize, transactionsHash.length);
+    const chunk = transactionsHash.slice(startIdx, endIdx);
+
+    const transactionsReceiptToSave = {};
+    console.time(`Processing chunk ${i + 1}`);
+
+    try {
+      // Create an array of promises for fetching transaction receipts
+      const promises = chunk.map(async (hash) => {
+        let receipt = readFromReceiptsCache(hash);
+        if (!receipt) {
+          receipt = await alchemy.core.getTransactionReceipt(hash);
+          transactionsReceiptToSave[hash] = receipt;
+        }
+      });
+
+      // Wait for all promises to resolve
+      const results = await Promise.allSettled(promises);
+      results.forEach(result => {
+        if (result.status !== 'fulfilled') {
+          let requestBody = JSON.parse(result.reason.requestBody);
+          let hashError = requestBody.params[0];
+          console.log(`Error ${hashError}. code: ${result.reason.code}, reason: ${result.reason.reason}`);
+        }
+      });
+
+    } catch (error) {
+      console.log(`Error while collecting data in chunk ${i + 1}: ${error}`);
+    } finally {
+      console.timeEnd(`Processing chunk ${i + 1}`);
+      // Writing missing transactions receipt in the cache
+      writeAllToReceiptsCache(transactionsReceiptToSave);
+    }
   }
 
   let count = 0;
-  for (hash in receiptsCacheJSON) {
-    const swapEvents = await getSwapEvents(receiptsCacheJSON[hash]);
-    //const isFlashloaned = await possibleFlashloan(receiptsCacheJSON[hash]);
+  for (const hash in receiptsCacheJSON) {
     const isArbitrage = await getArbitrage(receiptsCacheJSON[hash]);
-    if (swapEvents.length >= 2 && isArbitrage) {
+    if (isArbitrage) {
       console.log(hash);
       count++;
     }
   }
   console.log(`Number of transactions with >= 2 Swap events: ${count}`);
 }
-
 // Call the main function
 main().catch(err => console.error(err));
