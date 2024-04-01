@@ -1,17 +1,30 @@
 const { Alchemy, Network, Utils, fromHex } = require("alchemy-sdk");
 require('dotenv').config();
-
 const fs = require('fs');
+const { env } = require("process");
+const path = require('path');
 
-const cacheFilePath = './cache/transfersCache1.json';
-const receiptsCacheFilePath = './cache/receiptsCache1.json';
-
+// Global variables
+let WTH = "";
+let startBlock = "";
+let endBlock = "";
+let transfersCacheFilePath = "";
+let receiptsCacheFilePath = "";
 let receiptsCacheJSON = {};
+
+// Alchemy API endpoint and API key
+const alchemyApiKey = process.env.ALCHEMY_API_KEY;
+const config = {
+  apiKey: alchemyApiKey,
+  network: "",
+};
+const alchemy = new Alchemy(config);
+
 
 // Helper function to read from cache
 function readFromCache() {
-  if (fs.existsSync(cacheFilePath)) {
-    const cacheData = fs.readFileSync(cacheFilePath);
+  if (fs.existsSync(transfersCacheFilePath)) {
+    const cacheData = fs.readFileSync(transfersCacheFilePath);
     return JSON.parse(cacheData);
   }
   return null;
@@ -49,26 +62,7 @@ function writeAllToReceiptsCache(listOfReceipts) {
   fs.writeFileSync(receiptsCacheFilePath, JSON.stringify(receiptsCacheJSON));
 }
 
-
-
-// Alchemy API endpoint and API key
-const alchemyApiKey = process.env.ALCHEMY_API_KEY;
-const config = {
-  apiKey: alchemyApiKey,
-  network: Network.ETH_MAINNET,
-};
-const alchemy = new Alchemy(config);
-
 async function getTransactionsInRange() {
-
-  const WTH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
-  // const WBTC = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599";
-
-  // const startBlock = "0x1291B24"; //19471140
-  // const endBlock = "0x1291C36"; //19471414
-
-  const startBlock = "0x1291C36";//19471414 
-  const endBlock = "0x12937B2"; //19478450
 
   const cachedTransactions = readFromCache();
   if (cachedTransactions && cachedTransactions.startBlock === startBlock && cachedTransactions.endBlock === endBlock) {
@@ -228,20 +222,86 @@ async function getArbitrage(receipt) {
 }
 
 async function sleep() {
-  console.log("Sleeping for 3 minute...");
-  await new Promise(resolve => setTimeout(resolve, 180000)); 
-  console.log("Woke up after 3 minute!");
+  console.log("Sleeping for 1 minute...");
+  await new Promise(resolve => setTimeout(resolve, 60000));
+  console.log("Woke up after 1 minute!");
+}
+
+function createDirectories(dirPath) {
+  const directories = dirPath.split('/'); // Split the directory path into an array of directory names
+  let currentPath = '';
+
+  directories.forEach((dir) => {
+    currentPath = path.join(currentPath, dir); // Append each directory to the current path
+    if (!fs.existsSync(currentPath)) {
+      fs.mkdirSync(currentPath); // Create the directory if it doesn't exist
+    }
+  });
+}
+
+function init() {
+  const args = process.argv.slice(2); // Remove the first two elements (node executable and script name)
+
+  // Process arguments based on their positions
+  if (args.length != 1) {
+    console.log("No blockchain was selected. Select one of the following blockchains:");
+    console.log("-ethereum");
+    console.log("-arbitrum");
+    console.log("-polygon");
+    console.log("-optimism");
+    return;
+  } else {
+    const firstArgument = args[0];
+    if (firstArgument === '-ethereum') {
+      config.network = process.env.ETHEREUM_NETWORK;
+      WTH = process.env.ETHEREUM_WTH_ADDRESS;
+      startBlock = process.env.ETHEREUM_START_BLOCK;
+      endBlock = process.env.ETHEREUM_END_BLOCK;
+      transfersCacheFilePath = process.env.ETHEREUM_TRANSFERS;
+      receiptsCacheFilePath = process.env.ETHEREUM_RECEIPTS;
+      createDirectories(process.env.ETHEREUM_DIRS);
+    } else if (firstArgument === '-arbitrum') {
+      config.network = process.env.ARBITRUM_NETWORK;
+      WTH = process.env.ARBITRUM_WTH_ADDRESS;
+      startBlock = process.env.ARBITRUM_START_BLOCK;
+      endBlock = process.env.ARBITRUM_END_BLOCK;
+      transfersCacheFilePath = process.env.ARBITRUM_TRANSFERS;
+      receiptsCacheFilePath = process.env.ARBITRUM_RECEIPTS;
+      createDirectories(process.env.ARBITRUM_DIRS);
+    } else if (firstArgument === '-polygon') {
+      config.network = process.env.POLYGON_NETWORK;
+      WTH = process.env.POLYGON_WTH_ADDRESS;
+      startBlock = process.env.POLYGON_START_BLOCK;
+      endBlock = process.env.POLYGON_END_BLOCK;
+      transfersCacheFilePath = process.env.POLYGON_TRANSFERS;
+      receiptsCacheFilePath = process.env.POLYGON_RECEIPTS;
+      createDirectories(process.env.POLYGON_DIRS);
+    } else if (firstArgument === '-optimism') {
+      config.network = process.env.OPTIMISM_NETWORK;
+      WTH = process.env.OPTIMISM_WTH_ADDRESS;
+      startBlock = process.env.OPTIMISM_START_BLOCK;
+      endBlock = process.env.OPTIMISM_END_BLOCK;
+      transfersCacheFilePath = process.env.OPTIMISM_NETWORK;
+      receiptsCacheFilePath = process.env.OPTIMISM_TRANSFERS;
+      createDirectories(process.env.OPTIMISM_DIRS);
+    } else {
+      console.log("Blockchain not found!");
+      return;
+    }
+  }
+
+  main().catch(err => console.error(err));
+  //main_read_cache().catch(err => console.error(err));
 }
 
 async function main() {
+
   const transactionsHash = await getTransactionsInRange();
   console.log("Finished getting asset transfers!");
 
   const batchSize = 1000;
   const numChunks = Math.ceil(transactionsHash.length / batchSize);
   console.log("Number of Chunks: ", numChunks);
-  
-  
 
   for (let i = 0; i < numChunks; i++) {
     let errnum = 0;
@@ -283,8 +343,10 @@ async function main() {
     }
     console.log("net requests: ", netreq);
 
-    if (errnum > 0){
+    if (errnum > 0) {
       console.log("errors still happen");
+      const errorPercentageChunk = errnum / chunk.length * 100;
+      console.log("errors still happen: " + errorPercentageChunk + "%");
       console.log("num errors: ", errnum);
       sleep();
     }
@@ -302,10 +364,8 @@ async function main() {
 }
 
 
-async function main_read_cache(){
-
+async function main_read_cache() {
   receiptsCacheJSON = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
-
   let count = 0;
   for (const hash in receiptsCacheJSON) {
     const isArbitrage = await getArbitrage(receiptsCacheJSON[hash]);
@@ -315,8 +375,7 @@ async function main_read_cache(){
     }
   }
   console.log(`Number of transactions with >= 2 Swap events: ${count}`);
-
 }
+
 // Call the main function
-main().catch(err => console.error(err));
-//main_read_cache().catch(err => console.error(err));
+init();
