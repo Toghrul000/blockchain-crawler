@@ -281,8 +281,8 @@ function init() {
       WTH = process.env.OPTIMISM_WTH_ADDRESS;
       startBlock = process.env.OPTIMISM_START_BLOCK;
       endBlock = process.env.OPTIMISM_END_BLOCK;
-      transfersCacheFilePath = process.env.OPTIMISM_NETWORK;
-      receiptsCacheFilePath = process.env.OPTIMISM_TRANSFERS;
+      transfersCacheFilePath = process.env.OPTIMISM_TRANSFERS;
+      receiptsCacheFilePath = process.env.OPTIMISM_RECEIPTS;
       createDirectories(process.env.OPTIMISM_DIRS);
     } else {
       console.log("Blockchain not found!");
