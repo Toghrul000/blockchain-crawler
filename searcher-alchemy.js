@@ -348,7 +348,7 @@ async function main() {
       const errorPercentageChunk = errnum / chunk.length * 100;
       console.log("errors still happen: " + errorPercentageChunk + "%");
       console.log("num errors: ", errnum);
-      sleep();
+      await sleep();
     }
   }
 
