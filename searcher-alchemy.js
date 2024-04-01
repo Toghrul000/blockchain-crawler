@@ -24,7 +24,7 @@ function readFromCache() {
 
 // Helper function to write to cache
 function writeToCache(data) {
-  fs.writeFileSync(cacheFilePath, JSON.stringify(data));
+  fs.writeFileSync(transfersCacheFilePath, JSON.stringify(data));
 }
 
 // Helper function to read from receipts cache
@@ -346,7 +346,7 @@ async function main() {
       const errorPercentageChunk = errnum / chunk.length * 100;
       console.log("errors still happen: " + errorPercentageChunk + "%");
       console.log("num errors: ", errnum);
-      await sleep();
+      //await sleep();
     }
   }
 
