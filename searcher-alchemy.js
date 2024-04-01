@@ -31,6 +31,7 @@ function readFromReceiptsCache(txHash) {
   if (Object.keys(receiptsCacheJSON).length == 0) {
     const cacheData = fs.readFileSync(receiptsCacheFilePath);
     receiptsCacheJSON = JSON.parse(cacheData);
+    console.log("reading once, num of receipts is: ", Object.keys(receiptsCacheJSON).length);
   }
 
   return receiptsCacheJSON[txHash] || null;
@@ -226,39 +227,50 @@ async function getArbitrage(receipt) {
   return false;
 }
 
+async function sleep() {
+  console.log("Sleeping for 3 minute...");
+  await new Promise(resolve => setTimeout(resolve, 180000)); 
+  console.log("Woke up after 3 minute!");
+}
+
 async function main() {
   const transactionsHash = await getTransactionsInRange();
   console.log("Finished getting asset transfers!");
 
-  const batchSize = 5000;
+  const batchSize = 1000;
   const numChunks = Math.ceil(transactionsHash.length / batchSize);
   console.log("Number of Chunks: ", numChunks);
+  
+  
 
   for (let i = 0; i < numChunks; i++) {
+    let errnum = 0;
+    let netreq = 0;
+
     const startIdx = i * batchSize;
     const endIdx = Math.min((i + 1) * batchSize, transactionsHash.length);
     const chunk = transactionsHash.slice(startIdx, endIdx);
-
     const transactionsReceiptToSave = {};
     console.time(`Processing chunk ${i + 1}`);
-
     try {
       // Create an array of promises for fetching transaction receipts
       const promises = chunk.map(async (hash) => {
         let receipt = readFromReceiptsCache(hash);
         if (!receipt) {
+          netreq++;
           receipt = await alchemy.core.getTransactionReceipt(hash);
           transactionsReceiptToSave[hash] = receipt;
         }
       });
-
       // Wait for all promises to resolve
       const results = await Promise.allSettled(promises);
       results.forEach(result => {
         if (result.status !== 'fulfilled') {
+          errnum++;
           let requestBody = JSON.parse(result.reason.requestBody);
           let hashError = requestBody.params[0];
-          console.log(`Error ${hashError}. code: ${result.reason.code}, reason: ${result.reason.reason}`);
+          //console.log(`Error ${hashError}. code: ${result.reason.code}, reason: ${result.reason.reason}`);
+
         }
       });
 
@@ -269,17 +281,42 @@ async function main() {
       // Writing missing transactions receipt in the cache
       writeAllToReceiptsCache(transactionsReceiptToSave);
     }
+    console.log("net requests: ", netreq);
+
+    if (errnum > 0){
+      console.log("errors still happen");
+      console.log("num errors: ", errnum);
+      sleep();
+    }
   }
 
   let count = 0;
   for (const hash in receiptsCacheJSON) {
     const isArbitrage = await getArbitrage(receiptsCacheJSON[hash]);
     if (isArbitrage) {
-      console.log(hash);
+      //console.log(hash);
       count++;
     }
   }
   console.log(`Number of transactions with >= 2 Swap events: ${count}`);
 }
+
+
+async function main_read_cache(){
+
+  receiptsCacheJSON = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
+
+  let count = 0;
+  for (const hash in receiptsCacheJSON) {
+    const isArbitrage = await getArbitrage(receiptsCacheJSON[hash]);
+    if (isArbitrage) {
+      //console.log(hash);
+      count++;
+    }
+  }
+  console.log(`Number of transactions with >= 2 Swap events: ${count}`);
+
+}
 // Call the main function
 main().catch(err => console.error(err));
+//main_read_cache().catch(err => console.error(err));

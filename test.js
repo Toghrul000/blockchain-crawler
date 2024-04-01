@@ -1,20 +1,32 @@
 const { ethers } = require('ethers');
 require('dotenv').config();
 
+const { Alchemy, Network, Utils, fromHex } = require("alchemy-sdk");
+
+
 // Alchemy API endpoint and API key
 const alchemyApiKey = process.env.ALCHEMY_API_KEY;
 const alchemyUrl = 'https://eth-mainnet.g.alchemy.com/v2/' + "alchemy-replit"; //+ alchemyApiKey;
+
+
+const config = {
+  apiKey: alchemyApiKey,
+  network: Network.ETH_MAINNET,
+};
+const alchemy = new Alchemy(config);
 
 
 // Set up ethers.js provider using Alchemy
 const provider = new ethers.providers.JsonRpcProvider(alchemyUrl);
 
 //const transactionHash = '0xb72689042f313adbffbe4d192b0febc4c8a8346b75a549d5b4d4795b37180488';
-const transactionHash = '0xa9df2fd3e89ea91323b7a984f0ac93c210e9e9ed19a3bd1e1aea82b33533c3f9';
+const transactionHash = '0xfc50631535905f3d518a8c3b7d386bb163e1882d1992ce6f12dba6400f59ab9a';
 
  
 async function getSwapEvents(txHash) {
   const receipt = await provider.getTransactionReceipt(txHash);
+  const r2 = await alchemy.core.getTransactionReceipt(txHash)
+  console.log(r2)
 
   const swapEventSignatures = [
     ethers.utils.id('Swap(address,uint256,uint256,uint256,uint256,address)'),
@@ -43,7 +55,6 @@ async function getErc20Transfers(txHash) {
   try {
     // Get the transaction receipt
     const receipt = await provider.getTransactionReceipt(txHash);
-
 
     // Filter ERC20 Transfer events
     const transferEvents = receipt.logs.filter(log =>
