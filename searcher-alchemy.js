@@ -339,13 +339,12 @@ async function main() {
       // Writing missing transactions receipt in the cache
       writeAllToReceiptsCache(transactionsReceiptToSave);
     }
-    console.log("net requests: ", netreq);
+    console.log("Net requests: ", netreq);
 
     if (errnum > 0) {
-      console.log("errors still happen");
+      console.log("Num errors: ", errnum);
       const errorPercentageChunk = errnum / chunk.length * 100;
-      console.log("errors still happen: " + errorPercentageChunk + "%");
-      console.log("num errors: ", errnum);
+      console.log("Errors still happen: " + errorPercentageChunk + "%");
       //await sleep();
     }
   }
