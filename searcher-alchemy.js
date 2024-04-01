@@ -239,57 +239,62 @@ function init() {
     apiKey: alchemyApiKey,
     network: "",
   };
+
   // Process arguments based on their positions
-  if (args.length != 1) {
+  if (args.length < 1) {
     console.log("No blockchain was selected. Select one of the following blockchains:");
     console.log("-ethereum");
     console.log("-arbitrum");
     console.log("-polygon");
     console.log("-optimism");
     return;
+  }
+
+  const firstArgument = args[0];
+  const secondArgument = args[1];
+  if (firstArgument === '-ethereum') {
+    config.network = process.env.ETHEREUM_NETWORK;
+    WTH = process.env.ETHEREUM_WTH_ADDRESS;
+    startBlock = process.env.ETHEREUM_START_BLOCK;
+    endBlock = process.env.ETHEREUM_END_BLOCK;
+    transfersCacheFilePath = process.env.ETHEREUM_TRANSFERS;
+    receiptsCacheFilePath = process.env.ETHEREUM_RECEIPTS;
+    createDirectories(process.env.ETHEREUM_DIRS);
+  } else if (firstArgument === '-arbitrum') {
+    config.network = process.env.ARBITRUM_NETWORK;
+    WTH = process.env.ARBITRUM_WTH_ADDRESS;
+    startBlock = process.env.ARBITRUM_START_BLOCK;
+    endBlock = process.env.ARBITRUM_END_BLOCK;
+    transfersCacheFilePath = process.env.ARBITRUM_TRANSFERS;
+    receiptsCacheFilePath = process.env.ARBITRUM_RECEIPTS;
+    createDirectories(process.env.ARBITRUM_DIRS);
+  } else if (firstArgument === '-polygon') {
+    config.network = process.env.POLYGON_NETWORK;
+    WTH = process.env.POLYGON_WTH_ADDRESS;
+    startBlock = process.env.POLYGON_START_BLOCK;
+    endBlock = process.env.POLYGON_END_BLOCK;
+    transfersCacheFilePath = process.env.POLYGON_TRANSFERS;
+    receiptsCacheFilePath = process.env.POLYGON_RECEIPTS;
+    createDirectories(process.env.POLYGON_DIRS);
+  } else if (firstArgument === '-optimism') {
+    config.network = process.env.OPTIMISM_NETWORK;
+    WTH = process.env.OPTIMISM_WTH_ADDRESS;
+    startBlock = process.env.OPTIMISM_START_BLOCK;
+    endBlock = process.env.OPTIMISM_END_BLOCK;
+    transfersCacheFilePath = process.env.OPTIMISM_TRANSFERS;
+    receiptsCacheFilePath = process.env.OPTIMISM_RECEIPTS;
+    createDirectories(process.env.OPTIMISM_DIRS);
   } else {
-    const firstArgument = args[0];
-    if (firstArgument === '-ethereum') {
-      config.network = process.env.ETHEREUM_NETWORK;
-      WTH = process.env.ETHEREUM_WTH_ADDRESS;
-      startBlock = process.env.ETHEREUM_START_BLOCK;
-      endBlock = process.env.ETHEREUM_END_BLOCK;
-      transfersCacheFilePath = process.env.ETHEREUM_TRANSFERS;
-      receiptsCacheFilePath = process.env.ETHEREUM_RECEIPTS;
-      createDirectories(process.env.ETHEREUM_DIRS);
-    } else if (firstArgument === '-arbitrum') {
-      config.network = process.env.ARBITRUM_NETWORK;
-      WTH = process.env.ARBITRUM_WTH_ADDRESS;
-      startBlock = process.env.ARBITRUM_START_BLOCK;
-      endBlock = process.env.ARBITRUM_END_BLOCK;
-      transfersCacheFilePath = process.env.ARBITRUM_TRANSFERS;
-      receiptsCacheFilePath = process.env.ARBITRUM_RECEIPTS;
-      createDirectories(process.env.ARBITRUM_DIRS);
-    } else if (firstArgument === '-polygon') {
-      config.network = process.env.POLYGON_NETWORK;
-      WTH = process.env.POLYGON_WTH_ADDRESS;
-      startBlock = process.env.POLYGON_START_BLOCK;
-      endBlock = process.env.POLYGON_END_BLOCK;
-      transfersCacheFilePath = process.env.POLYGON_TRANSFERS;
-      receiptsCacheFilePath = process.env.POLYGON_RECEIPTS;
-      createDirectories(process.env.POLYGON_DIRS);
-    } else if (firstArgument === '-optimism') {
-      config.network = process.env.OPTIMISM_NETWORK;
-      WTH = process.env.OPTIMISM_WTH_ADDRESS;
-      startBlock = process.env.OPTIMISM_START_BLOCK;
-      endBlock = process.env.OPTIMISM_END_BLOCK;
-      transfersCacheFilePath = process.env.OPTIMISM_TRANSFERS;
-      receiptsCacheFilePath = process.env.OPTIMISM_RECEIPTS;
-      createDirectories(process.env.OPTIMISM_DIRS);
-    } else {
-      console.log("Blockchain not found!");
-      return;
-    }
+    console.log("Blockchain not found!");
+    return;
   }
 
   alchemy = new Alchemy(config);
-  main().catch(err => console.error(err));
-  //main_read_cache().catch(err => console.error(err));
+  if (secondArgument && secondArgument === '-analyze') {
+    analyze().catch(err => console.error(err));
+  } else {
+    main().catch(err => console.error(err));
+  }
 }
 
 async function main() {
@@ -360,8 +365,7 @@ async function main() {
   console.log(`Number of transactions with >= 2 Swap events: ${count}`);
 }
 
-
-async function main_read_cache() {
+async function analyze() {
   receiptsCacheJSON = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
   let count = 0;
   for (const hash in receiptsCacheJSON) {
