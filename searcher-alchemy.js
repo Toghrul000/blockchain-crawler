@@ -11,15 +11,7 @@ let endBlock = "";
 let transfersCacheFilePath = "";
 let receiptsCacheFilePath = "";
 let receiptsCacheJSON = {};
-
-// Alchemy API endpoint and API key
-const alchemyApiKey = process.env.ALCHEMY_API_KEY;
-const config = {
-  apiKey: alchemyApiKey,
-  network: "",
-};
-const alchemy = new Alchemy(config);
-
+let alchemy;
 
 // Helper function to read from cache
 function readFromCache() {
@@ -241,7 +233,12 @@ function createDirectories(dirPath) {
 
 function init() {
   const args = process.argv.slice(2); // Remove the first two elements (node executable and script name)
-
+  // Alchemy API endpoint and API key
+  const alchemyApiKey = process.env.ALCHEMY_API_KEY;
+  const config = {
+    apiKey: alchemyApiKey,
+    network: "",
+  };
   // Process arguments based on their positions
   if (args.length != 1) {
     console.log("No blockchain was selected. Select one of the following blockchains:");
@@ -290,6 +287,7 @@ function init() {
     }
   }
 
+  alchemy = new Alchemy(config);
   main().catch(err => console.error(err));
   //main_read_cache().catch(err => console.error(err));
 }
