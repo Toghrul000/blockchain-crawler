@@ -375,7 +375,7 @@ async function analyze() {
       count++;
     }
   }
-  console.log(`Number of transactions with >= 2 Swap events: ${count}`);
+  console.log(`Number of transactions with >= 2 Swap events: ${count} out of ${Object.keys(receiptsCacheJSON).length}`);
 }
 
 // Call the main function

@@ -3,8 +3,8 @@ require('dotenv').config();
 
 const fs = require('fs');
 
-const cacheFilePath = './cache/transfersCache1.json'; //TEMPLATE CACHE FOLDER
-const receiptsCacheFilePath = './cache/receiptsCache1.json';//TEMPLATE CACHE FOLDER
+const cacheFilePath = './cache/optimism/transfers.json'; //TEMPLATE CACHE FOLDER
+const receiptsCacheFilePath = './cache/optimism/receipts.json';//TEMPLATE CACHE FOLDER
 
 let receiptsCacheJSON = {};
 
@@ -224,8 +224,8 @@ async function main_read_cache(){
       non_arbitragesObject[hash]=receipt;
     }
   }
-  fs.writeFileSync("./cache/receiptsCache_ETHEREUM_ARBITRAGE.json", JSON.stringify(arbitragesObject));
-  fs.writeFileSync("./cache/receiptsCache_ETHEREUM_NON_ARBITRAGE.json", JSON.stringify(non_arbitragesObject));
+  fs.writeFileSync("./cache/optimism/filtered/receiptsArbitrage.json", JSON.stringify(arbitragesObject));
+  fs.writeFileSync("./cache/optimism/filtered/receiptsNonArbitrage.json", JSON.stringify(non_arbitragesObject));
 
 
   console.log(`Number of transactions with >= 2 Swap events: ${count}`);

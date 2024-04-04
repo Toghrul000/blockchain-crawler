@@ -3,4 +3,5 @@ package-lock.json
 transactionsCache.json
 receiptsCache.json
 /cache/*/*.json
+/cache/*/*/*.json
 /backup_cache
