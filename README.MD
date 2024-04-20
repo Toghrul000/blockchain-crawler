@@ -27,20 +27,20 @@ node searcher-alchemy -polygon -filter
 ├── arbitrum/
 │   ├── filtered/...
 │   ├── receipts.json
-│   └── receiptsNonArbitrage.json
+│   └── transfers.json
 │
 ├── ethereum/
 │   ├── filtered/...
 │   ├── receipts.json
-│   └── receiptsNonArbitrage.json
+│   └── transfers.json
 │
 ├── optimism/
 │   ├── filtered/...
 │   ├── receipts.json
-│   └── receiptsNonArbitrage.json
+│   └── transfers.json
 │
 └── polygon/
     ├── filtered/...
     ├── receipts.json
-    └── receiptsNonArbitrage.json
+    └── transfers.json
 ```
