@@ -10,6 +10,8 @@ let startBlock = "";
 let endBlock = "";
 let transfersCacheFilePath = "";
 let receiptsCacheFilePath = "";
+let filteredArbitrageTXPath = "";
+let filteredNonArbitrageTXPath = "";
 let receiptsCacheJSON = {};
 let alchemy;
 
@@ -259,6 +261,8 @@ function init() {
     endBlock = process.env.ETHEREUM_END_BLOCK;
     transfersCacheFilePath = process.env.ETHEREUM_TRANSFERS;
     receiptsCacheFilePath = process.env.ETHEREUM_RECEIPTS;
+    filteredArbitrageTXPath = process.env.ETHEREUM_FILTERED_RECEIPTS_ARBITRAGE;
+    filteredNonArbitrageTXPath = process.env.ETHEREUM_FILTERED_RECEIPTS_NON_ARBITRAGE;
     createDirectories(process.env.ETHEREUM_DIRS);
   } else if (firstArgument === '-arbitrum') {
     config.network = process.env.ARBITRUM_NETWORK;
@@ -267,6 +271,8 @@ function init() {
     endBlock = process.env.ARBITRUM_END_BLOCK;
     transfersCacheFilePath = process.env.ARBITRUM_TRANSFERS;
     receiptsCacheFilePath = process.env.ARBITRUM_RECEIPTS;
+    filteredArbitrageTXPath = process.env.ARBITRUM_FILTERED_RECEIPTS_ARBITRAGE;
+    filteredNonArbitrageTXPath = process.env.ARBITRUM_FILTERED_RECEIPTS_NON_ARBITRAGE;
     createDirectories(process.env.ARBITRUM_DIRS);
   } else if (firstArgument === '-polygon') {
     config.network = process.env.POLYGON_NETWORK;
@@ -275,6 +281,8 @@ function init() {
     endBlock = process.env.POLYGON_END_BLOCK;
     transfersCacheFilePath = process.env.POLYGON_TRANSFERS;
     receiptsCacheFilePath = process.env.POLYGON_RECEIPTS;
+    filteredArbitrageTXPath = process.env.POLYGON_FILTERED_RECEIPTS_ARBITRAGE;
+    filteredNonArbitrageTXPath = process.env.POLYGON_FILTERED_RECEIPTS_NON_ARBITRAGE;
     createDirectories(process.env.POLYGON_DIRS);
   } else if (firstArgument === '-optimism') {
     config.network = process.env.OPTIMISM_NETWORK;
@@ -283,6 +291,8 @@ function init() {
     endBlock = process.env.OPTIMISM_END_BLOCK;
     transfersCacheFilePath = process.env.OPTIMISM_TRANSFERS;
     receiptsCacheFilePath = process.env.OPTIMISM_RECEIPTS;
+    filteredArbitrageTXPath = process.env.OPTIMISM_FILTERED_RECEIPTS_ARBITRAGE;
+    filteredNonArbitrageTXPath = process.env.OPTIMISM_FILTERED_RECEIPTS_NON_ARBITRAGE;
     createDirectories(process.env.OPTIMISM_DIRS);
   } else {
     console.log("Blockchain not found!");
@@ -292,6 +302,8 @@ function init() {
   alchemy = new Alchemy(config);
   if (secondArgument && secondArgument === '-analyze') {
     analyze().catch(err => console.error(err));
+  } else if (secondArgument && secondArgument == '-filter') {
+    filter().catch(err => console.error(err));
   } else {
     main().catch(err => console.error(err));
   }
@@ -365,7 +377,14 @@ async function main() {
   console.log(`Number of transactions with >= 2 Swap events: ${count}`);
 }
 
+/** 
+ * Reads from cache and prints number of arbitrage transactions.
+*/
 async function analyze() {
+  if (!fs.existsSync(receiptsCacheFilePath)) {
+    console.log("Cache empty!");
+    return;
+  }
   receiptsCacheJSON = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
   let count = 0;
   for (const hash in receiptsCacheJSON) {
@@ -376,6 +395,40 @@ async function analyze() {
     }
   }
   console.log(`Number of transactions with >= 2 Swap events: ${count} out of ${Object.keys(receiptsCacheJSON).length}`);
+}
+
+/** 
+ * Reads from cache and splits TXs into arbitrage and non-arbitrage transactions writing to 2 new files.
+*/
+async function filter() {
+  if (!fs.existsSync(receiptsCacheFilePath)) {
+    console.log("Cache empty!");
+    return;
+  }
+
+  receiptsCacheJSON = JSON.parse(fs.readFileSync(receiptsCacheFilePath));
+  let arbitragesObject = {};
+  let non_arbitragesObject = {};
+
+  let count = 0;
+  for (const hash in receiptsCacheJSON) {
+    const receipt = receiptsCacheJSON[hash]; // receipt
+    const isArbitrage = await getArbitrage(receiptsCacheJSON[hash]);
+    if (isArbitrage) {
+      //console.log(hash);
+      //write to arbitrage file
+      count++;
+      arbitragesObject[hash] = receipt;
+
+    } else {
+      //write to non-arbitrage file
+      non_arbitragesObject[hash]=receipt;
+    }
+  }
+  fs.writeFileSync(filteredArbitrageTXPath, JSON.stringify(arbitragesObject));
+  fs.writeFileSync(filteredNonArbitrageTXPath, JSON.stringify(non_arbitragesObject));
+
+  console.log(`Number of transactions with >= 2 Swap events: ${count}`);
 }
 
 // Call the main function
